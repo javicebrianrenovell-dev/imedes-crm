@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+export const dynamic = 'force-dynamic';
+
 import { createClient } from '@/lib/supabase/client';
 
 export default function LoginPage() {
