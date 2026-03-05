@@ -1,20 +1,16 @@
 // src/app/(dashboard)/layout.tsx
-import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
 import DashboardLayoutClient from '@/components/layout/DashboardLayoutClient';
 
+/**
+ * Layout principal del Dashboard.
+ * Se ha desactivado la comprobación de usuario para permitir acceso libre.
+ */
 export default async function DashboardLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-        redirect('/login');
-    }
-
+    // Ya no comprobamos si el usuario existe para dejar entrar a cualquiera
     return (
         <DashboardLayoutClient>
             {children}
