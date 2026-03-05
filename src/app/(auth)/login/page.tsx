@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
+import { IMEDES_LOGO_BASE64 } from '@/lib/constants';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
@@ -40,7 +41,7 @@ export default function LoginPage() {
                 <div className="text-center mb-8">
                     <div className="inline-flex items-center justify-center w-24 h-24 mb-4">
                         <img
-                            src="/logo-imedes.png"
+                            src={IMEDES_LOGO_BASE64}
                             alt="IMEDES CRM Logo"
                             className="w-24 h-24 object-contain"
                         />

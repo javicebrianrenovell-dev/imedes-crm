@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { cn, getInitials } from '@/lib/utils';
+import { IMEDES_LOGO_BASE64 } from '@/lib/constants';
 
 const NAV_ITEMS = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -52,7 +53,7 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
             <div className={cn('flex items-center border-b border-slate-100 px-4', collapsed ? 'h-16 justify-center' : 'h-16 gap-3')}>
                 <div className="flex-shrink-0 w-8 h-8 relative">
                     <img
-                        src="/logo-imedes.png"
+                        src={IMEDES_LOGO_BASE64}
                         alt="Logo"
                         className="w-full h-full object-contain"
                     />
