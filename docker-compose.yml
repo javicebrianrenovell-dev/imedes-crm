@@ -12,16 +12,7 @@ services:
     container_name: imedes-crm
     restart: unless-stopped
     ports:
-      - "3005:3000"
-    networks:
-      - dokploy-network
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.crm-imedes.rule=Host(`${DOMAIN_URL}`)"
-      - "traefik.http.routers.crm-imedes.entrypoints=web,websecure"
-      - "traefik.http.services.crm-imedes.loadbalancer.server.port=3000"
-      - "traefik.http.routers.crm-imedes.tls=true"
-      - "traefik.http.routers.crm-imedes.tls.certresolver=letsencrypt"
+      - "3000:3000"
     environment:
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
@@ -34,7 +25,3 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-
-networks:
-  dokploy-network:
-    external: true
