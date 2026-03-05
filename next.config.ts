@@ -1,11 +1,10 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+import type { NextConfig } from 'next';
+
+const nextConfig: NextConfig = {
   eslint: {
-    // Los errores de ESLint no bloquearán el build de producción
     ignoreDuringBuilds: true,
   },
   typescript: {
-    // Los errores de TypeScript no bloquearán el build de producción
     ignoreBuildErrors: true,
   },
   experimental: {

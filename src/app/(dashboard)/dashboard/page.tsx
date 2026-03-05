@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/(dashboard)/dashboard/page.tsx
 import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
