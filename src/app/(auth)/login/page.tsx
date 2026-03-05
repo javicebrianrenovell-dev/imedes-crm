@@ -40,7 +40,7 @@ export default function LoginPage() {
                 <div className="text-center mb-8">
                     <div className="inline-flex items-center justify-center w-24 h-24 mb-4">
                         <Image
-                            src="/logo.png"
+                            src="/logo-imedes.png"
                             alt="IMEDES CRM Logo"
                             width={96}
                             height={96}
