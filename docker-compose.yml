@@ -1,9 +1,5 @@
 version: '3.8'
 
-networks:
-  dokploy-network:
-    external: true
-
 services:
   crm-imedes:
     build:
@@ -17,15 +13,6 @@ services:
     restart: unless-stopped
     ports:
       - "3005:3000"
-    networks:
-      - dokploy-network
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.crmimedes.rule=Host(`${DOMAIN_URL}`)"
-      - "traefik.http.routers.crmimedes.entrypoints=web,websecure"
-      - "traefik.http.services.crmimedes.loadbalancer.server.port=3000"
-      - "traefik.http.routers.crmimedes.tls=true"
-      - "traefik.http.routers.crmimedes.tls.certresolver=letsencrypt"
     environment:
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
