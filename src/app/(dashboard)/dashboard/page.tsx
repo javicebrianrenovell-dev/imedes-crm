@@ -15,8 +15,44 @@ import type { KPIResponsable, KPIArea, KPISector, FunnelItem, ProximaReunion, Ac
 
 export const dynamic = 'force-dynamic';
 
-async function getDashboardData() {
+async function getDashboardData(filters: {
+    responsable?: string;
+    area?: string;
+    sector?: string;
+    periodo?: string;
+}) {
     const supabase = await createClient();
+
+    // Construir query de oportunidades con filtros
+    let opQuery = supabase
+        .from('oportunidades')
+        .select(`
+            *,
+            cliente:clientes(nombre, sector),
+            responsable:responsables(nombre, color)
+        `)
+        .eq('archivada', false);
+
+    if (filters.area) {
+        opQuery = opQuery.eq('area', filters.area);
+    }
+    if (filters.sector) {
+        opQuery = opQuery.eq('cliente.sector' as any, filters.sector);
+    }
+
+    // Para el filtro por responsable, obtenemos el id del responsable por nombre
+    let responsableIdFiltro: string | undefined;
+    if (filters.responsable) {
+        const { data: respData } = await supabase
+            .from('responsables')
+            .select('id')
+            .eq('nombre', filters.responsable)
+            .single();
+        if (respData) {
+            responsableIdFiltro = respData.id;
+            opQuery = opQuery.eq('responsable_id', responsableIdFiltro);
+        }
+    }
 
     const [
         kpiResponsableRes,
@@ -26,7 +62,7 @@ async function getDashboardData() {
         reunionesRes,
         actividadesRes,
         responsablesRes,
-        oportunidadesActivasRes,
+        opFiltradas,
         clientesRes,
     ] = await Promise.all([
         supabase.from('vista_kpi_responsable').select('*'),
@@ -40,11 +76,7 @@ async function getDashboardData() {
             .order('fecha', { ascending: false })
             .limit(10),
         supabase.from('responsables').select('*').eq('activo', true),
-        supabase
-            .from('oportunidades')
-            .select('id', { count: 'exact', head: true })
-            .eq('archivada', false)
-            .not('situacion', 'in', '("PROPUESTA_GANADA","PROPUESTA_PERDIDA","DESCARTADA")'),
+        opQuery,
         supabase.from('clientes').select('id', { count: 'exact', head: true }).eq('activo', true),
     ]);
 
@@ -55,23 +87,95 @@ async function getDashboardData() {
     const reuniones: ProximaReunion[] = reunionesRes.data ?? [];
     const actividades: Actividad[] = (actividadesRes.data ?? []) as Actividad[];
     const responsables: Responsable[] = responsablesRes.data ?? [];
+    const oportunidadesFiltradas = opFiltradas.data ?? [];
 
-    // KPIs globales
-    const pipelineTotal = kpiResponsable.reduce((sum, r) => sum + Number(r.pipeline_total), 0);
-    const importeGanado = kpiResponsable.reduce((sum, r) => sum + Number(r.importe_ganado), 0);
-    const numActivas = oportunidadesActivasRes.count ?? 0;
+    // KPIs calculados sobre las oportunidades filtradas
+    const pipelineTotal = oportunidadesFiltradas
+        .filter(o => !['PROPUESTA_PERDIDA', 'DESCARTADA'].includes(o.situacion))
+        .reduce((sum, o) => sum + Number(o.presupuesto ?? 0), 0);
+
+    const importeGanado = oportunidadesFiltradas
+        .filter(o => o.situacion === 'PROPUESTA_GANADA')
+        .reduce((sum, o) => sum + Number(o.presupuesto ?? 0), 0);
+
+    const numActivas = oportunidadesFiltradas
+        .filter(o => !['PROPUESTA_GANADA', 'PROPUESTA_PERDIDA', 'DESCARTADA'].includes(o.situacion))
+        .length;
+
     const numClientes = clientesRes.count ?? 0;
-    const totalGanadas = kpiResponsable.reduce((sum, r) => sum + Number(r.ganadas), 0);
-    const totalCerradas = funnel.filter(f =>
-        f.situacion === 'PROPUESTA_GANADA' || f.situacion === 'PROPUESTA_PERDIDA'
-    ).reduce((sum, f) => sum + Number(f.num_oportunidades), 0);
+
+    const totalGanadas = oportunidadesFiltradas.filter(o => o.situacion === 'PROPUESTA_GANADA').length;
+    const totalCerradas = oportunidadesFiltradas.filter(o =>
+        o.situacion === 'PROPUESTA_GANADA' || o.situacion === 'PROPUESTA_PERDIDA'
+    ).length;
     const tasaConversion = totalCerradas > 0 ? Math.round((totalGanadas / totalCerradas) * 100) : 0;
 
-    return { kpiResponsable, kpiArea, kpiSector, funnel, reuniones, actividades, responsables, pipelineTotal, importeGanado, numActivas, numClientes, tasaConversion };
+    // Recalcular KPIs por area/sector/responsable usando las oportunidades filtradas
+    const kpiResponsableFiltrado: KPIResponsable[] = filters.responsable || filters.area || filters.sector
+        ? responsables.map(r => {
+            const ops = oportunidadesFiltradas.filter((o: any) => o.responsable_id === r.id);
+            return {
+                responsable_id: r.id,
+                responsable: r.nombre,
+                color: r.color,
+                total_oportunidades: ops.length,
+                ganadas: ops.filter(o => o.situacion === 'PROPUESTA_GANADA').length,
+                presentadas: ops.filter(o => o.situacion === 'PROPUESTA_PRESENTADA').length,
+                activas: ops.filter(o => !['PROPUESTA_GANADA', 'PROPUESTA_PERDIDA', 'DESCARTADA'].includes(o.situacion)).length,
+                pipeline_total: ops.filter(o => !['PROPUESTA_PERDIDA', 'DESCARTADA'].includes(o.situacion)).reduce((s, o) => s + Number(o.presupuesto ?? 0), 0),
+                importe_ganado: ops.filter(o => o.situacion === 'PROPUESTA_GANADA').reduce((s, o) => s + Number(o.presupuesto ?? 0), 0),
+                tasa_conversion: totalCerradas > 0 ? Math.round((totalGanadas / totalCerradas) * 100) : 0,
+            } as unknown as KPIResponsable;
+        })
+        : kpiResponsable;
+
+    // Recalcular funnel con datos filtrados
+    const funnelFiltrado: FunnelItem[] = filters.responsable || filters.area || filters.sector
+        ? (() => {
+            const grouped: Record<string, { num: number; importe: number }> = {};
+            oportunidadesFiltradas.forEach(o => {
+                if (!grouped[o.situacion]) grouped[o.situacion] = { num: 0, importe: 0 };
+                grouped[o.situacion].num++;
+                grouped[o.situacion].importe += Number(o.presupuesto ?? 0);
+            });
+            return Object.entries(grouped).map(([situacion, v]) => ({
+                situacion: situacion as any,
+                num_oportunidades: v.num,
+                importe_total: v.importe,
+            }));
+        })()
+        : funnel;
+
+    return {
+        kpiResponsable: kpiResponsableFiltrado,
+        kpiArea,
+        kpiSector,
+        funnel: funnelFiltrado,
+        reuniones,
+        actividades,
+        responsables,
+        pipelineTotal,
+        importeGanado,
+        numActivas,
+        numClientes,
+        tasaConversion,
+    };
 }
 
-export default async function DashboardPage() {
-    const data = await getDashboardData();
+interface DashboardPageProps {
+    searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
+
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
+    const params = await searchParams;
+    const filters = {
+        responsable: typeof params.responsable === 'string' ? params.responsable : undefined,
+        area: typeof params.area === 'string' ? params.area : undefined,
+        sector: typeof params.sector === 'string' ? params.sector : undefined,
+        periodo: typeof params.periodo === 'string' ? params.periodo : '2026',
+    };
+
+    const data = await getDashboardData(filters);
 
     return (
         <div className="space-y-6">
@@ -79,6 +183,16 @@ export default async function DashboardPage() {
             <Suspense>
                 <DashboardFilters responsables={data.responsables} />
             </Suspense>
+
+            {/* Indicador de filtros activos */}
+            {(filters.responsable || filters.area || filters.sector) && (
+                <div className="flex items-center gap-2 text-sm text-slate-500 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                    <span className="font-medium text-green-700">Filtros activos:</span>
+                    {filters.responsable && <span className="bg-green-100 text-green-800 rounded px-2 py-0.5">{filters.responsable}</span>}
+                    {filters.area && <span className="bg-indigo-100 text-indigo-800 rounded px-2 py-0.5">{filters.area}</span>}
+                    {filters.sector && <span className="bg-amber-100 text-amber-800 rounded px-2 py-0.5">{filters.sector}</span>}
+                </div>
+            )}
 
             {/* KPIs — Fila 1 */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

@@ -54,7 +54,7 @@ export function DashboardFilters({ responsables }: DashboardFiltersProps) {
                 <option value="">Todas las áreas</option>
                 <option value="CONSULTORÍA">Consultoría</option>
                 <option value="COMUNICACIÓN">Comunicación</option>
-                <option value="EA">Est. Ambiental</option>
+                <option value="EA">Edu. Ambiental</option>
             </select>
 
             {/* Sector */}
