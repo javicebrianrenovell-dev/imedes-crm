@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 export const dynamic = 'force-dynamic';
 
+import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 
 export default function LoginPage() {
@@ -37,12 +38,15 @@ export default function LoginPage() {
             <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 p-8">
                 {/* Logo e título */}
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-green-600 mb-4 shadow-lg">
-                        {/* Logo IMEDES — icono hoja */}
-                        <svg viewBox="0 0 24 24" fill="none" className="w-9 h-9 text-white" stroke="currentColor" strokeWidth="1.5">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 3C6.477 3 2 7.477 2 13c0 4.283 2.678 7.94 6.5 9.5L12 21l3.5 1.5C19.322 20.94 22 17.283 22 13c0-5.523-4.477-10-10-10z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v18M3 12h18" opacity="0.4" />
-                        </svg>
+                    <div className="inline-flex items-center justify-center w-24 h-24 mb-4">
+                        <Image
+                            src="/logo.png"
+                            alt="IMEDES CRM Logo"
+                            width={96}
+                            height={96}
+                            className="object-contain"
+                            priority
+                        />
                     </div>
                     <h1 className="text-2xl font-bold text-slate-900">IMEDES CRM</h1>
                     <p className="text-slate-500 text-sm mt-1">Desarrollo de Negocio</p>

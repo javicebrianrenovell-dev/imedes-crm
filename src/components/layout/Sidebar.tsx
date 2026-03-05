@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
     LayoutDashboard,
@@ -49,10 +50,13 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
         >
             {/* Logo */}
             <div className={cn('flex items-center border-b border-slate-100 px-4', collapsed ? 'h-16 justify-center' : 'h-16 gap-3')}>
-                <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-green-600 flex items-center justify-center">
-                    <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-white" stroke="currentColor" strokeWidth="1.5">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 3C6.477 3 2 7.477 2 13c0 4.283 2.678 7.94 6.5 9.5L12 21l3.5 1.5C19.322 20.94 22 17.283 22 13c0-5.523-4.477-10-10-10z" />
-                    </svg>
+                <div className="flex-shrink-0 w-8 h-8 relative">
+                    <Image
+                        src="/logo.png"
+                        alt="Logo"
+                        fill
+                        className="object-contain"
+                    />
                 </div>
                 {!collapsed && (
                     <div className="min-w-0">
