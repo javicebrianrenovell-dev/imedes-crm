@@ -23,7 +23,7 @@ export default function LoginPage() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
 
         if (error) {
-            setError('Email o contraseña incorrectos. Por favor, inténtalo de nuevo.');
+            setError(error.message); // Mostrar el error técnico real para depuración
             setLoading(false);
             return;
         }
