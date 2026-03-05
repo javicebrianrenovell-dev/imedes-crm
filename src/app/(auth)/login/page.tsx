@@ -39,13 +39,10 @@ export default function LoginPage() {
                 {/* Logo e título */}
                 <div className="text-center mb-8">
                     <div className="inline-flex items-center justify-center w-24 h-24 mb-4">
-                        <Image
+                        <img
                             src="/logo-imedes.png"
                             alt="IMEDES CRM Logo"
-                            width={96}
-                            height={96}
-                            className="object-contain"
-                            priority
+                            className="w-24 h-24 object-contain"
                         />
                     </div>
                     <h1 className="text-2xl font-bold text-slate-900">IMEDES CRM</h1>
