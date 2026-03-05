@@ -39,6 +39,7 @@ export default function LoginPage() {
                 {/* Logo e título */}
                 <div className="text-center mb-8">
                     <div className="inline-flex items-center justify-center w-24 h-24 mb-4">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                             src={IMEDES_LOGO_BASE64}
                             alt="IMEDES CRM Logo"

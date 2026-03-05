@@ -19,41 +19,17 @@ async function getDashboardData(filters: {
     responsable?: string;
     area?: string;
     sector?: string;
-    periodo?: string;
 }) {
     const supabase = await createClient();
 
-    // Construir query de oportunidades con filtros
-    let opQuery = supabase
-        .from('oportunidades')
-        .select(`
-            *,
-            cliente:clientes(nombre, sector),
-            responsable:responsables(nombre, color)
-        `)
-        .eq('archivada', false);
+    // Obtener responsables
+    const { data: responsablesData } = await supabase
+        .from('responsables')
+        .select('*')
+        .eq('activo', true);
+    const responsables: Responsable[] = responsablesData ?? [];
 
-    if (filters.area) {
-        opQuery = opQuery.eq('area', filters.area);
-    }
-    if (filters.sector) {
-        opQuery = opQuery.eq('cliente.sector' as any, filters.sector);
-    }
-
-    // Para el filtro por responsable, obtenemos el id del responsable por nombre
-    let responsableIdFiltro: string | undefined;
-    if (filters.responsable) {
-        const { data: respData } = await supabase
-            .from('responsables')
-            .select('id')
-            .eq('nombre', filters.responsable)
-            .single();
-        if (respData) {
-            responsableIdFiltro = respData.id;
-            opQuery = opQuery.eq('responsable_id', responsableIdFiltro);
-        }
-    }
-
+    // Obtener todas las oportunidades sin filtrar para las vistas KPI
     const [
         kpiResponsableRes,
         kpiAreaRes,
@@ -61,8 +37,6 @@ async function getDashboardData(filters: {
         funnelRes,
         reunionesRes,
         actividadesRes,
-        responsablesRes,
-        opFiltradas,
         clientesRes,
     ] = await Promise.all([
         supabase.from('vista_kpi_responsable').select('*'),
@@ -75,8 +49,6 @@ async function getDashboardData(filters: {
             .select('*, responsable:responsables(nombre, color), oportunidad:oportunidades(nombre), cliente:clientes(nombre)')
             .order('fecha', { ascending: false })
             .limit(10),
-        supabase.from('responsables').select('*').eq('activo', true),
-        opQuery,
         supabase.from('clientes').select('id', { count: 'exact', head: true }).eq('activo', true),
     ]);
 
@@ -86,71 +58,99 @@ async function getDashboardData(filters: {
     const funnel: FunnelItem[] = funnelRes.data ?? [];
     const reuniones: ProximaReunion[] = reunionesRes.data ?? [];
     const actividades: Actividad[] = (actividadesRes.data ?? []) as Actividad[];
-    const responsables: Responsable[] = responsablesRes.data ?? [];
-    const oportunidadesFiltradas = opFiltradas.data ?? [];
-
-    // KPIs calculados sobre las oportunidades filtradas
-    const pipelineTotal = oportunidadesFiltradas
-        .filter(o => !['PROPUESTA_PERDIDA', 'DESCARTADA'].includes(o.situacion))
-        .reduce((sum, o) => sum + Number(o.presupuesto ?? 0), 0);
-
-    const importeGanado = oportunidadesFiltradas
-        .filter(o => o.situacion === 'PROPUESTA_GANADA')
-        .reduce((sum, o) => sum + Number(o.presupuesto ?? 0), 0);
-
-    const numActivas = oportunidadesFiltradas
-        .filter(o => !['PROPUESTA_GANADA', 'PROPUESTA_PERDIDA', 'DESCARTADA'].includes(o.situacion))
-        .length;
-
     const numClientes = clientesRes.count ?? 0;
 
-    const totalGanadas = oportunidadesFiltradas.filter(o => o.situacion === 'PROPUESTA_GANADA').length;
-    const totalCerradas = oportunidadesFiltradas.filter(o =>
-        o.situacion === 'PROPUESTA_GANADA' || o.situacion === 'PROPUESTA_PERDIDA'
-    ).length;
-    const tasaConversion = totalCerradas > 0 ? Math.round((totalGanadas / totalCerradas) * 100) : 0;
+    // Si hay filtros, traer oportunidades filtradas
+    let pipelineTotal = kpiResponsable.reduce((sum, r) => sum + Number(r.pipeline_total), 0);
+    let importeGanado = kpiResponsable.reduce((sum, r) => sum + Number(r.importe_ganado), 0);
+    let numActivas = 0;
+    let tasaConversion = 0;
+    let kpiResponsableFinal = kpiResponsable;
+    let funnelFinal = funnel;
 
-    // Recalcular KPIs por area/sector/responsable usando las oportunidades filtradas
-    const kpiResponsableFiltrado: KPIResponsable[] = filters.responsable || filters.area || filters.sector
-        ? responsables.map(r => {
-            const ops = oportunidadesFiltradas.filter((o: any) => o.responsable_id === r.id);
+    // Calcular numActivas y tasaConversion desde el funnel
+    const totalGanadasFunnel = funnel.find(f => f.situacion === 'PROPUESTA_GANADA')?.num_oportunidades ?? 0;
+    const totalPerdidasFunnel = funnel.find(f => f.situacion === 'PROPUESTA_PERDIDA')?.num_oportunidades ?? 0;
+    const totalCerradas = totalGanadasFunnel + totalPerdidasFunnel;
+    tasaConversion = totalCerradas > 0 ? Math.round((totalGanadasFunnel / totalCerradas) * 100) : 0;
+    numActivas = funnel
+        .filter(f => !['PROPUESTA_GANADA', 'PROPUESTA_PERDIDA', 'DESCARTADA'].includes(f.situacion))
+        .reduce((sum, f) => sum + Number(f.num_oportunidades), 0);
+
+    if (filters.responsable || filters.area || filters.sector) {
+        // Construir query raww como any para evitar TypeScript deep instantiation
+        let q = supabase.from('oportunidades').select('id,situacion,presupuesto,area,responsable_id,cliente_id,archivada').eq('archivada', false) as any;
+        if (filters.area) q = q.eq('area', filters.area);
+        if (filters.responsable) {
+            const { data: rd } = await supabase.from('responsables').select('id').eq('nombre', filters.responsable).single();
+            if (rd) q = q.eq('responsable_id', rd.id);
+        }
+
+        const { data: ops } = await q;
+        const oportunidades: any[] = ops ?? [];
+
+        // Si filtramos por sector, necesitamos cruzar con clientes
+        let opsFiltradas = oportunidades;
+        if (filters.sector) {
+            const { data: clientesSector } = await supabase
+                .from('clientes')
+                .select('id')
+                .eq('sector', filters.sector);
+            const clienteIds = new Set((clientesSector ?? []).map((c: any) => c.id));
+            opsFiltradas = oportunidades.filter((o: any) => clienteIds.has(o.cliente_id));
+        }
+
+        pipelineTotal = opsFiltradas
+            .filter((o: any) => !['PROPUESTA_PERDIDA', 'DESCARTADA'].includes(o.situacion))
+            .reduce((sum: number, o: any) => sum + Number(o.presupuesto ?? 0), 0);
+        importeGanado = opsFiltradas
+            .filter((o: any) => o.situacion === 'PROPUESTA_GANADA')
+            .reduce((sum: number, o: any) => sum + Number(o.presupuesto ?? 0), 0);
+        numActivas = opsFiltradas.filter((o: any) =>
+            !['PROPUESTA_GANADA', 'PROPUESTA_PERDIDA', 'DESCARTADA'].includes(o.situacion)
+        ).length;
+        const totalGanadas = opsFiltradas.filter((o: any) => o.situacion === 'PROPUESTA_GANADA').length;
+        const totalCerradas2 = opsFiltradas.filter((o: any) =>
+            o.situacion === 'PROPUESTA_GANADA' || o.situacion === 'PROPUESTA_PERDIDA'
+        ).length;
+        tasaConversion = totalCerradas2 > 0 ? Math.round((totalGanadas / totalCerradas2) * 100) : 0;
+
+        // Recalcular KPI por responsable
+        kpiResponsableFinal = responsables.map(r => {
+            const rOps = opsFiltradas.filter((o: any) => o.responsable_id === r.id);
             return {
                 responsable_id: r.id,
                 responsable: r.nombre,
                 color: r.color,
-                total_oportunidades: ops.length,
-                ganadas: ops.filter(o => o.situacion === 'PROPUESTA_GANADA').length,
-                presentadas: ops.filter(o => o.situacion === 'PROPUESTA_PRESENTADA').length,
-                activas: ops.filter(o => !['PROPUESTA_GANADA', 'PROPUESTA_PERDIDA', 'DESCARTADA'].includes(o.situacion)).length,
-                pipeline_total: ops.filter(o => !['PROPUESTA_PERDIDA', 'DESCARTADA'].includes(o.situacion)).reduce((s, o) => s + Number(o.presupuesto ?? 0), 0),
-                importe_ganado: ops.filter(o => o.situacion === 'PROPUESTA_GANADA').reduce((s, o) => s + Number(o.presupuesto ?? 0), 0),
-                tasa_conversion: totalCerradas > 0 ? Math.round((totalGanadas / totalCerradas) * 100) : 0,
+                total_oportunidades: rOps.length,
+                ganadas: rOps.filter((o: any) => o.situacion === 'PROPUESTA_GANADA').length,
+                presentadas: rOps.filter((o: any) => o.situacion === 'PROPUESTA_PRESENTADA').length,
+                activas: rOps.filter((o: any) => !['PROPUESTA_GANADA', 'PROPUESTA_PERDIDA', 'DESCARTADA'].includes(o.situacion)).length,
+                pipeline_total: rOps.filter((o: any) => !['PROPUESTA_PERDIDA', 'DESCARTADA'].includes(o.situacion)).reduce((s: number, o: any) => s + Number(o.presupuesto ?? 0), 0),
+                importe_ganado: rOps.filter((o: any) => o.situacion === 'PROPUESTA_GANADA').reduce((s: number, o: any) => s + Number(o.presupuesto ?? 0), 0),
+                tasa_conversion: 0,
             } as unknown as KPIResponsable;
-        })
-        : kpiResponsable;
+        });
 
-    // Recalcular funnel con datos filtrados
-    const funnelFiltrado: FunnelItem[] = filters.responsable || filters.area || filters.sector
-        ? (() => {
-            const grouped: Record<string, { num: number; importe: number }> = {};
-            oportunidadesFiltradas.forEach(o => {
-                if (!grouped[o.situacion]) grouped[o.situacion] = { num: 0, importe: 0 };
-                grouped[o.situacion].num++;
-                grouped[o.situacion].importe += Number(o.presupuesto ?? 0);
-            });
-            return Object.entries(grouped).map(([situacion, v]) => ({
-                situacion: situacion as any,
-                num_oportunidades: v.num,
-                importe_total: v.importe,
-            }));
-        })()
-        : funnel;
+        // Recalcular funnel
+        const grouped: Record<string, { num: number; importe: number }> = {};
+        opsFiltradas.forEach((o: any) => {
+            if (!grouped[o.situacion]) grouped[o.situacion] = { num: 0, importe: 0 };
+            grouped[o.situacion].num++;
+            grouped[o.situacion].importe += Number(o.presupuesto ?? 0);
+        });
+        funnelFinal = Object.entries(grouped).map(([situacion, v]) => ({
+            situacion: situacion as FunnelItem['situacion'],
+            num_oportunidades: v.num,
+            importe_total: v.importe,
+        }));
+    }
 
     return {
-        kpiResponsable: kpiResponsableFiltrado,
+        kpiResponsable: kpiResponsableFinal,
         kpiArea,
         kpiSector,
-        funnel: funnelFiltrado,
+        funnel: funnelFinal,
         reuniones,
         actividades,
         responsables,
@@ -162,17 +162,17 @@ async function getDashboardData(filters: {
     };
 }
 
+// Next.js 14: searchParams es un objeto directo (NO Promise)
 interface DashboardPageProps {
-    searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+    searchParams: { [key: string]: string | string[] | undefined };
 }
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
-    const params = await searchParams;
     const filters = {
-        responsable: typeof params.responsable === 'string' ? params.responsable : undefined,
-        area: typeof params.area === 'string' ? params.area : undefined,
-        sector: typeof params.sector === 'string' ? params.sector : undefined,
-        periodo: typeof params.periodo === 'string' ? params.periodo : '2026',
+        responsable: typeof searchParams.responsable === 'string' ? searchParams.responsable : undefined,
+        area: typeof searchParams.area === 'string' ? searchParams.area : undefined,
+        sector: typeof searchParams.sector === 'string' ? searchParams.sector : undefined,
+        periodo: typeof searchParams.periodo === 'string' ? searchParams.periodo : '2026',
     };
 
     const data = await getDashboardData(filters);
@@ -186,7 +186,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
             {/* Indicador de filtros activos */}
             {(filters.responsable || filters.area || filters.sector) && (
-                <div className="flex items-center gap-2 text-sm text-slate-500 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                <div className="flex items-center gap-2 text-sm bg-green-50 border border-green-200 rounded-lg px-3 py-2">
                     <span className="font-medium text-green-700">Filtros activos:</span>
                     {filters.responsable && <span className="bg-green-100 text-green-800 rounded px-2 py-0.5">{filters.responsable}</span>}
                     {filters.area && <span className="bg-indigo-100 text-indigo-800 rounded px-2 py-0.5">{filters.area}</span>}

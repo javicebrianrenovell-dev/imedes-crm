@@ -51,6 +51,7 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
             {/* Logo */}
             <div className={cn('flex items-center border-b border-slate-100 px-4', collapsed ? 'h-16 justify-center' : 'h-16 gap-3')}>
                 <div className="flex-shrink-0 w-8 h-8 relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                         src={IMEDES_LOGO_BASE64}
                         alt="Logo"
