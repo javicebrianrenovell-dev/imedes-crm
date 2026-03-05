@@ -16,7 +16,7 @@ export const SITUACION_CONFIG: Record<Situacion, { label: string; color: string;
 export const AREA_CONFIG: Record<Area, { label: string; color: string; bgColor: string }> = {
     'CONSULTORÍA': { label: 'Consultoría', color: '#6366f1', bgColor: '#eef2ff' },
     'COMUNICACIÓN': { label: 'Comunicación', color: '#0ea5e9', bgColor: '#e0f2fe' },
-    'EA': { label: 'Est. Ambiental', color: '#10b981', bgColor: '#d1fae5' },
+    'EA': { label: 'Edu. Ambiental', color: '#10b981', bgColor: '#d1fae5' },
 };
 
 export const SECTOR_CONFIG = {
