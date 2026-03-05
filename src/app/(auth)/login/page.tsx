@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 export const dynamic = 'force-dynamic';
 
-import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import { IMEDES_LOGO_BASE64 } from '@/lib/constants';
 
