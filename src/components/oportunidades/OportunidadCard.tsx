@@ -5,23 +5,40 @@ import { ResponsableAvatar } from '@/components/shared/ResponsableAvatar';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { AREA_CONFIG } from '@/lib/constants';
 import { CalendarDays } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface OportunidadCardProps {
     oportunidad: Oportunidad;
     isDragging?: boolean;
 }
 
+const PRIORITY_BORDER: Record<number, string> = {
+    1: 'border-l-red-400',
+    2: 'border-l-amber-300',
+    3: 'border-l-slate-200',
+};
+
+const PRIORITY_LABEL: Record<number, string> = {
+    1: 'Alta',
+    2: 'Media',
+    3: 'Baja',
+};
+
 export function OportunidadCard({ oportunidad: op, isDragging = false }: OportunidadCardProps) {
     const areaConfig = AREA_CONFIG[op.area];
+    const borderClass = PRIORITY_BORDER[op.prioridad] ?? 'border-l-slate-200';
 
     return (
         <Link
             href={`/oportunidades/${op.id}`}
-            className={`block bg-white rounded-lg border p-3 shadow-sm hover:shadow-md transition-all cursor-pointer ${isDragging ? 'shadow-xl rotate-1 opacity-90 border-green-300' : 'border-slate-200'
-                }`}
+            className={cn(
+                'block bg-white rounded-lg border border-slate-200 border-l-4 p-3 shadow-sm hover:shadow-md transition-all cursor-pointer',
+                borderClass,
+                isDragging && 'shadow-xl rotate-1 opacity-90 !border-green-300'
+            )}
             onClick={e => isDragging && e.preventDefault()}
         >
-            {/* Área badge */}
+            {/* Área badge + prioridad */}
             <div className="flex items-center justify-between mb-2">
                 <span
                     className="text-[10px] font-medium rounded px-1.5 py-0.5"
@@ -29,7 +46,11 @@ export function OportunidadCard({ oportunidad: op, isDragging = false }: Oportun
                 >
                     {areaConfig?.label ?? op.area}
                 </span>
-                {op.prioridad === 1 && <span title="Alta prioridad" className="text-red-500 text-xs">●</span>}
+                {op.prioridad === 1 && (
+                    <span className="text-[9px] font-semibold text-red-500 bg-red-50 rounded px-1 py-0.5">
+                        {PRIORITY_LABEL[op.prioridad]}
+                    </span>
+                )}
             </div>
 
             {/* Nombre */}

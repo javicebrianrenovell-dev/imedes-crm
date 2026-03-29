@@ -1,14 +1,5 @@
 'use client';
 
-import {
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    Tooltip,
-    Cell,
-    ResponsiveContainer,
-} from 'recharts';
 import type { FunnelItem } from '@/types';
 import { SITUACION_CONFIG, FUNNEL_ORDER } from '@/lib/constants';
 import { formatCurrency } from '@/lib/utils';
@@ -18,7 +9,6 @@ interface FunnelChartProps {
 }
 
 export function FunnelChart({ data }: FunnelChartProps) {
-    // Ordenar por el orden del funnel, excluir perdidas
     const chartData = FUNNEL_ORDER
         .map(sit => data.find(d => d.situacion === sit))
         .filter(Boolean)
@@ -27,40 +17,66 @@ export function FunnelChart({ data }: FunnelChartProps) {
             ops: Number(d!.num_oportunidades),
             importe: Number(d!.importe_total),
             color: SITUACION_CONFIG[d!.situacion]?.color ?? '#94a3b8',
-            situacion: d!.situacion,
         }));
+
+    const maxOps = Math.max(...chartData.map(d => d.ops), 1);
 
     return (
         <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
             <div className="mb-4">
                 <h3 className="text-sm font-semibold text-slate-900">Embudo de ventas</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Nº de oportunidades por etapa</p>
+                <p className="text-xs text-slate-400 mt-0.5">Oportunidades e importe por etapa</p>
             </div>
-            <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={chartData} layout="vertical" barSize={14}>
-                    <XAxis type="number" hide />
-                    <YAxis
-                        type="category"
-                        dataKey="name"
-                        width={130}
-                        tick={{ fontSize: 11, fill: '#64748b' }}
-                        axisLine={false}
-                        tickLine={false}
-                    />
-                    <Tooltip
-                        formatter={(value, _, props) => [
-                            `${value} ops · ${formatCurrency(props.payload.importe)}`,
-                            'Oportunidades',
-                        ]}
-                        contentStyle={{ borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 12 }}
-                    />
-                    <Bar dataKey="ops" radius={[0, 4, 4, 0]}>
-                        {chartData.map((entry, i) => (
-                            <Cell key={i} fill={entry.color} />
-                        ))}
-                    </Bar>
-                </BarChart>
-            </ResponsiveContainer>
+            <div className="space-y-2">
+                {chartData.map((d, i) => {
+                    const pct = maxOps > 0 ? (d.ops / maxOps) * 100 : 0;
+                    const prev = i > 0 ? chartData[i - 1].ops : null;
+                    const convPct = prev && prev > 0 ? Math.round((d.ops / prev) * 100) : null;
+
+                    return (
+                        <div key={d.name}>
+                            {convPct !== null && (
+                                <div className="flex items-center gap-2 pb-0.5">
+                                    <span className="w-[120px] flex-shrink-0" />
+                                    <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
+                                        ↓ {convPct}% pasan
+                                    </span>
+                                </div>
+                            )}
+                            <div className="flex items-center gap-3">
+                                <span className="text-[11px] text-slate-500 w-[120px] flex-shrink-0 truncate text-right">{d.name}</span>
+                                <div className="flex-1 flex items-center gap-2">
+                                    <div className="flex-1 bg-slate-100 rounded-full h-[18px] overflow-hidden">
+                                        <div
+                                            className="h-full rounded-full flex items-center justify-end pr-1.5 transition-all duration-500"
+                                            style={{ width: `${Math.max(pct, 3)}%`, backgroundColor: d.color }}
+                                        >
+                                            {d.ops > 0 && (
+                                                <span className="text-[10px] font-bold text-white leading-none">{d.ops}</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <span className="text-[11px] text-slate-500 flex-shrink-0 w-16 text-right">{formatCurrency(d.importe)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Cerradas */}
+            {data.filter(d => ['PROPUESTA_PERDIDA', 'DESCARTADA'].includes(d.situacion)).length > 0 && (
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-4 flex-wrap">
+                    {data.filter(d => ['PROPUESTA_PERDIDA', 'DESCARTADA'].includes(d.situacion)).map(d => (
+                        <div key={d.situacion} className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: SITUACION_CONFIG[d.situacion]?.color }} />
+                            <span className="text-xs text-slate-500">
+                                {SITUACION_CONFIG[d.situacion]?.label}: <strong>{d.num_oportunidades}</strong>
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }

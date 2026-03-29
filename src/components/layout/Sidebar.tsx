@@ -76,23 +76,31 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
             </div>
 
             {/* Navegación principal */}
-            <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-                {NAV_ITEMS.map(({ href, label, icon: Icon }) => (
-                    <Link
-                        key={href}
-                        href={href}
-                        id={`nav-${label.toLowerCase()}`}
-                        title={collapsed ? label : undefined}
-                        className={cn(
-                            'sidebar-item',
-                            isActive(href) ? 'sidebar-item-active' : 'sidebar-item-inactive',
-                            collapsed && 'justify-center px-0'
-                        )}
-                    >
-                        <Icon className="h-4 w-4 flex-shrink-0" />
-                        {!collapsed && <span className="truncate">{label}</span>}
-                    </Link>
-                ))}
+            <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
+                {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+                    const active = isActive(href);
+                    return (
+                        <Link
+                            key={href}
+                            href={href}
+                            id={`nav-${label.toLowerCase()}`}
+                            title={collapsed ? label : undefined}
+                            className={cn(
+                                'relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
+                                active
+                                    ? 'bg-green-50 text-green-800'
+                                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900',
+                                collapsed && 'justify-center px-0'
+                            )}
+                        >
+                            {active && !collapsed && (
+                                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-green-500 rounded-r-full" />
+                            )}
+                            <Icon className={cn('h-4 w-4 flex-shrink-0', active ? 'text-green-600' : '')} />
+                            {!collapsed && <span className="truncate">{label}</span>}
+                        </Link>
+                    );
+                })}
 
                 {/* Separador */}
                 <div className="pt-2 mt-2 border-t border-slate-100">
@@ -101,12 +109,17 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
                         id="nav-ajustes"
                         title={collapsed ? 'Ajustes' : undefined}
                         className={cn(
-                            'sidebar-item',
-                            pathname.startsWith('/ajustes') ? 'sidebar-item-active' : 'sidebar-item-inactive',
+                            'relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
+                            pathname.startsWith('/ajustes')
+                                ? 'bg-green-50 text-green-800'
+                                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900',
                             collapsed && 'justify-center px-0'
                         )}
                     >
-                        <Settings className="h-4 w-4 flex-shrink-0" />
+                        {pathname.startsWith('/ajustes') && !collapsed && (
+                            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-green-500 rounded-r-full" />
+                        )}
+                        <Settings className={cn('h-4 w-4 flex-shrink-0', pathname.startsWith('/ajustes') ? 'text-green-600' : '')} />
                         {!collapsed && <span>Ajustes</span>}
                     </Link>
                 </div>
@@ -128,7 +141,7 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
                     <button
                         onClick={signOut}
                         title="Cerrar sesión"
-                        className="flex-shrink-0 p-1.5 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
+                        className="flex-shrink-0 p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
                         aria-label="Cerrar sesión"
                     >
                         <LogOut className="h-4 w-4" />

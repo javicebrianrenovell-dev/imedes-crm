@@ -11,7 +11,9 @@ import { SectorBarChart } from '@/components/dashboard/SectorBarChart';
 import { ProximasReunionesList } from '@/components/dashboard/ProximasReunionesList';
 import { ActividadReciente } from '@/components/dashboard/ActividadReciente';
 import { DashboardFilters } from '@/components/dashboard/DashboardFilters';
-import { formatCurrency } from '@/lib/utils';
+import { PipelineHealthScore } from '@/components/dashboard/PipelineHealthScore';
+import { ActivityHeatmap } from '@/components/dashboard/ActivityHeatmap';
+import { formatCurrency, formatDate } from '@/lib/utils';
 import type { KPIResponsable, KPIArea, KPISector, FunnelItem, ProximaReunion, Actividad, Responsable } from '@/types';
 
 export const dynamic = 'force-dynamic';
@@ -147,6 +149,41 @@ async function getDashboardData(filters: {
         }));
     }
 
+    // Health metrics: % activas con próxima reunión definida + % con presupuesto
+    const activas = (await supabase
+        .from('oportunidades')
+        .select('id, presupuesto, fecha_proxima_reunion, situacion')
+        .eq('archivada', false)
+        .not('situacion', 'in', '(PROPUESTA_GANADA,PROPUESTA_PERDIDA,DESCARTADA)')).data ?? [];
+
+    const totalActivas = activas.length;
+    const pctConReunion = totalActivas > 0
+        ? Math.round(activas.filter((o: any) => o.fecha_proxima_reunion).length / totalActivas * 100)
+        : 0;
+    const pctConPresupuesto = totalActivas > 0
+        ? Math.round(activas.filter((o: any) => o.presupuesto && Number(o.presupuesto) > 0).length / totalActivas * 100)
+        : 0;
+
+    // Activity heatmap data: group by date
+    const { data: heatmapRaw } = await supabase
+        .from('actividades')
+        .select('fecha')
+        .order('fecha', { ascending: false })
+        .limit(500);
+
+    const heatmapMap = new Map<string, number>();
+    (heatmapRaw ?? []).forEach((a: any) => {
+        const date = a.fecha?.slice(0, 10);
+        if (date) heatmapMap.set(date, (heatmapMap.get(date) ?? 0) + 1);
+    });
+    const heatmapData = Array.from(heatmapMap.entries()).map(([date, count]) => ({ date, count }));
+
+    const healthMetrics = [
+        { label: 'Con reunión programada', value: pctConReunion, description: 'Oportunidades con próxima reunión' },
+        { label: 'Con presupuesto definido', value: pctConPresupuesto, description: 'Oportunidades con importe' },
+        { label: 'Tasa de conversión', value: tasaConversion, description: 'Ganadas vs cerradas' },
+    ];
+
     return {
         kpiResponsable: kpiResponsableFinal,
         kpiArea,
@@ -160,6 +197,8 @@ async function getDashboardData(filters: {
         numActivas,
         numClientes,
         tasaConversion,
+        healthMetrics,
+        heatmapData,
     };
 }
 
@@ -179,7 +218,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     const data = await getDashboardData(filters);
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-5">
             {/* Filtros */}
             <Suspense>
                 <DashboardFilters responsables={data.responsables} />
@@ -189,20 +228,21 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             {(filters.responsable || filters.area || filters.sector) && (
                 <div className="flex items-center gap-2 text-sm bg-green-50 border border-green-200 rounded-lg px-3 py-2">
                     <span className="font-medium text-green-700">Filtros activos:</span>
-                    {filters.responsable && <span className="bg-green-100 text-green-800 rounded px-2 py-0.5">{filters.responsable}</span>}
-                    {filters.area && <span className="bg-indigo-100 text-indigo-800 rounded px-2 py-0.5">{filters.area}</span>}
-                    {filters.sector && <span className="bg-amber-100 text-amber-800 rounded px-2 py-0.5">{filters.sector}</span>}
+                    {filters.responsable && <span className="bg-green-100 text-green-800 rounded-md px-2 py-0.5 text-xs">{filters.responsable}</span>}
+                    {filters.area && <span className="bg-indigo-100 text-indigo-800 rounded-md px-2 py-0.5 text-xs">{filters.area}</span>}
+                    {filters.sector && <span className="bg-amber-100 text-amber-800 rounded-md px-2 py-0.5 text-xs">{filters.sector}</span>}
                 </div>
             )}
 
-            {/* KPIs — Fila 1 */}
+            {/* KPIs Hero Strip */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <KPICard
                     title="Pipeline Total"
                     value={formatCurrency(data.pipelineTotal)}
                     icon={TrendingUp}
                     color="green"
-                    trendLabel="Oportunidades activas"
+                    hero
+                    trendLabel={`${data.numActivas} oportunidades activas`}
                     trend="up"
                 />
                 <KPICard
@@ -210,38 +250,49 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                     value={formatCurrency(data.importeGanado)}
                     icon={Trophy}
                     color="amber"
+                    hero
                 />
                 <KPICard
-                    title="Oportunidades Activas"
+                    title="Oportunidades"
                     value={String(data.numActivas)}
                     icon={Target}
                     color="indigo"
+                    hero
                     subtitle={`de ${data.numClientes} clientes`}
                 />
                 <KPICard
-                    title="Tasa de Conversión"
+                    title="Conversión"
                     value={`${data.tasaConversion}%`}
                     icon={Percent}
                     color="blue"
-                    trendLabel="Propuestas ganadas / cerradas"
+                    hero
+                    trendLabel="Ganadas vs cerradas"
                 />
             </div>
 
-            {/* Gráficas — Fila 2 */}
+            {/* Gráficas principales — Fila 2 */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <PipelineChart data={data.kpiResponsable} />
                 <FunnelChart data={data.funnel} />
             </div>
 
-            {/* Gráficas — Fila 3 */}
+            {/* Gráficas secundarias — Fila 3 */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <AreaPieChart data={data.kpiArea} />
                 <SectorBarChart data={data.kpiSector} />
                 <ProximasReunionesList reuniones={data.reuniones} />
             </div>
 
-            {/* Actividad reciente — Fila 4 */}
-            <ActividadReciente actividades={data.actividades} />
+            {/* Fila 4: Actividad + Health Score */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div className="lg:col-span-2">
+                    <ActividadReciente actividades={data.actividades} />
+                </div>
+                <PipelineHealthScore metrics={data.healthMetrics} />
+            </div>
+
+            {/* Heatmap de actividad */}
+            <ActivityHeatmap data={data.heatmapData} />
         </div>
     );
 }

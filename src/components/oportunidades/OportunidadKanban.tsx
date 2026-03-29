@@ -30,13 +30,23 @@ interface OportunidadKanbanProps {
 function KanbanColumn({ situacion, oportunidades }: { situacion: Situacion; oportunidades: Oportunidad[] }) {
     const config = SITUACION_CONFIG[situacion];
     const ids = oportunidades.map(o => o.id);
+    const totalImporte = oportunidades.reduce((sum, o) => sum + Number(o.presupuesto ?? 0), 0);
+    const formatK = (n: number) => n === 0 ? '' : n >= 1000 ? `${(n / 1000).toFixed(0)}k €` : `${n} €`;
 
     return (
         <div className="flex flex-col min-w-[240px] w-64 flex-shrink-0">
             {/* Header */}
-            <div className="flex items-center justify-between px-3 py-2.5 rounded-t-xl bg-slate-800 text-white">
-                <span className="text-xs font-semibold truncate">{config.label}</span>
-                <span className="flex-shrink-0 ml-2 text-xs bg-white/20 rounded-full px-2 py-0.5">
+            <div
+                className="flex items-start justify-between px-3 py-2.5 rounded-t-xl"
+                style={{ backgroundColor: config.color }}
+            >
+                <div className="min-w-0">
+                    <span className="text-xs font-bold text-white truncate block leading-snug">{config.label}</span>
+                    {totalImporte > 0 && (
+                        <span className="text-[10px] text-white/80 leading-none">{formatK(totalImporte)}</span>
+                    )}
+                </div>
+                <span className="flex-shrink-0 ml-2 text-xs bg-white/25 rounded-full px-2 py-0.5 font-bold text-white">
                     {oportunidades.length}
                 </span>
             </div>
@@ -44,7 +54,8 @@ function KanbanColumn({ situacion, oportunidades }: { situacion: Situacion; opor
             {/* Cards */}
             <SortableContext items={ids} strategy={verticalListSortingStrategy}>
                 <div
-                    className="flex flex-col gap-2 p-2 min-h-[200px] rounded-b-xl bg-slate-100 flex-1"
+                    className="flex flex-col gap-2 p-2 min-h-[200px] rounded-b-xl flex-1"
+                    style={{ backgroundColor: config.bgColor }}
                     data-situacion={situacion}
                 >
                     {oportunidades.map(op => (

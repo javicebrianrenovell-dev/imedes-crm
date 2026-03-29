@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
+import { CommandPalette } from '@/components/shared/CommandPalette';
 
 const PAGE_TITLES: Record<string, string> = {
     '/dashboard': 'Dashboard',
@@ -25,8 +26,21 @@ function getPageTitle(pathname: string): string {
 export default function DashboardLayoutClient({ children }: { children: React.ReactNode }) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
+    const [cmdOpen, setCmdOpen] = useState(false);
     const pathname = usePathname();
     const title = getPageTitle(pathname);
+
+    // Cmd+K / Ctrl+K global shortcut
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                setCmdOpen(prev => !prev);
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, []);
 
     return (
         <div className="flex h-screen bg-slate-50 overflow-hidden">
@@ -56,11 +70,15 @@ export default function DashboardLayoutClient({ children }: { children: React.Re
                 <Header
                     title={title}
                     onMobileMenuToggle={() => setMobileOpen(!mobileOpen)}
+                    onSearchOpen={() => setCmdOpen(true)}
                 />
                 <main className="flex-1 overflow-y-auto p-6">
                     {children}
                 </main>
             </div>
+
+            {/* Command Palette global */}
+            <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />
         </div>
     );
 }
