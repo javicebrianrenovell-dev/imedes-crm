@@ -8,7 +8,17 @@ const nextConfig = {
   },
   experimental: {
     serverActions: {
-      allowedOrigins: ['localhost:3000', 'crm.imedes.es'],
+      // Dominios permitidos para invocar Server Actions.
+      // Incluimos el dominio productivo actual, localhost para dev y los
+      // subdominios corporativos planificados para que cualquier futura
+      // migración no requiera tocar este archivo.
+      allowedOrigins: [
+        'localhost:3000',
+        'crm-imedes-72-60-214-52.traefik.me',
+        'crm.imedes.es',
+        'crm.grupimedes.com',
+        'crmimedes.javicebrian.es',
+      ],
     },
   },
   images: {
