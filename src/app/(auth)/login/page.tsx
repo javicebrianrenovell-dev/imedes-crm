@@ -64,8 +64,10 @@ export default function LoginPage() {
                         <p className="text-xs uppercase tracking-[0.2em] text-[#c9a961] font-medium">
                             Instituto IMEDES
                         </p>
-                        <p className="text-lg font-semibold text-[#faf8f3]">
-                            Consultoría ambiental
+                        <p className="text-sm text-[#faf8f3]/70 mt-1 leading-relaxed">
+                            Medio Ambiente y Territorio<br />
+                            Comunicación<br />
+                            Educación Ambiental
                         </p>
                     </div>
                 </header>
