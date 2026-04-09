@@ -15,8 +15,11 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+# Defaults para que el build de Next.js siempre inline las URLs en el
+# bundle del cliente, incluso si Dokploy no los pasa como build-args.
+# NEXT_PUBLIC_* son seguros: la anon key solo da acceso anónimo (RLS).
+ARG NEXT_PUBLIC_SUPABASE_URL=https://crmimedes-db.javicebrian.es
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NzI3MDcwMDMsImV4cCI6MTg5MzQ1NjAwMCwicm9sZSI6ImFub24iLCJpc3MiOiJzdXBhYmFzZSJ9.SZTLtkvg9ezq13aCzCfmAZ_ZpAoTsqokcy84Gztcwyg
 
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
 ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
