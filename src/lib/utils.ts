@@ -64,7 +64,8 @@ export function getSituacionConfig(situacion: Situacion) {
     return SITUACION_CONFIG[situacion] ?? SITUACION_CONFIG['EN_PREVISION'];
 }
 
-export function getInitials(name: string): string {
+export function getInitials(name: string | null | undefined): string {
+    if (!name) return '?';
     return name
         .split(' ')
         .map(w => w[0])
