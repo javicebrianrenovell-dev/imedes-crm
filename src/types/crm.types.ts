@@ -128,6 +128,81 @@ export interface KPIResponsable {
     tasa_conversion: number;
 }
 
+// --- Cuadro de dirección (refundación 28-jul-2026) -------------------------
+// Las cuatro preguntas que el dashboard responde cada lunes.
+
+export interface Pulso {
+    propuestas_vivas: number;
+    pipeline: number;
+    abandonadas: number;
+    importe_abandonado: number;
+    fichas_incompletas: number;
+    cerradas_producto: number;
+    toques_7dias: number;
+}
+
+export interface ItemAbandono {
+    id: string;
+    cliente: string;
+    oportunidad: string;
+    situacion: string;
+    producto_catalogo: string | null;
+    familia: string | null;
+    importe: number;
+    toques: number;
+    dias_sin_tocar: number;
+    estado: 'good' | 'warning' | 'serious' | 'critical';
+}
+
+export interface ItemDescuento {
+    id: string;
+    cliente: string;
+    producto_catalogo: string | null;
+    ofertado: number;
+    tarifa: number;
+    desviacion_pct: number;
+    resultado: 'ganada' | 'perdida' | 'abierta';
+}
+
+export interface RendimientoProducto {
+    producto: string;
+    propuestas: number;
+    esperando_respuesta: number;
+    cerradas: number;
+    ganadas: number;
+    perdidas: number;
+    tasa_aceptacion_pct: number | null;
+    ticket_medio_ofertado: number | null;
+    precio_catalogo: number | null;
+    descuento_medio_pct: number | null;
+    dias_medios_hasta_decision: number | null;
+    motivo_rechazo_dominante: string | null;
+    importe_en_juego: number;
+    fiabilidad: string;
+}
+
+export interface MotivoProducto {
+    producto: string;
+    motivo_rechazo: string;
+    n: number;
+    importe_perdido: number;
+}
+
+// Pipeline por producto de catálogo. Reemplaza a KPIResponsable en la gráfica
+// del dashboard desde la refundación (28-jul-2026): con un responsable único,
+// el eje con información es el producto.
+export interface KPIProducto {
+    producto_clave: string;
+    producto: string;
+    color: string;
+    total_oportunidades: number;
+    ganadas: number;
+    presentadas: number;
+    activas: number;
+    pipeline_total: number;
+    importe_ganado: number;
+}
+
 export interface KPIArea {
     area: Area;
     total_oportunidades: number;

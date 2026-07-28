@@ -13,8 +13,17 @@ import { ActividadReciente } from '@/components/dashboard/ActividadReciente';
 import { DashboardFilters } from '@/components/dashboard/DashboardFilters';
 import { PipelineHealthScore } from '@/components/dashboard/PipelineHealthScore';
 import { ActivityHeatmap } from '@/components/dashboard/ActivityHeatmap';
+// Cuadro de dirección — refundación 28-jul-2026
+import { PulsoTiles } from '@/components/dashboard/PulsoTiles';
+import { AbandonoChart } from '@/components/dashboard/AbandonoChart';
+import { ProductoTable } from '@/components/dashboard/ProductoTable';
+import { DescuentoChart, MotivosBlock } from '@/components/dashboard/DescuentoChart';
+import { LecturaBlock } from '@/components/dashboard/LecturaBlock';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import type { KPIResponsable, KPIArea, KPISector, FunnelItem, ProximaReunion, Actividad, Responsable } from '@/types';
+import type {
+    KPIResponsable, KPIProducto, KPIArea, KPISector, FunnelItem, ProximaReunion,
+    Actividad, Responsable, Pulso, ItemAbandono, ItemDescuento, RendimientoProducto, MotivoProducto,
+} from '@/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,6 +44,7 @@ async function getDashboardData(filters: {
     // Obtener todas las oportunidades sin filtrar para las vistas KPI
     const [
         kpiResponsableRes,
+        kpiProductoRes,
         kpiAreaRes,
         kpiSectorRes,
         funnelRes,
@@ -43,6 +53,7 @@ async function getDashboardData(filters: {
         clientesRes,
     ] = await Promise.all([
         supabase.from('vista_kpi_responsable').select('*'),
+        supabase.from('vista_kpi_producto').select('*'),
         supabase.from('vista_kpi_area').select('*'),
         supabase.from('vista_kpi_sector').select('*'),
         supabase.from('vista_funnel').select('*'),
@@ -55,7 +66,24 @@ async function getDashboardData(filters: {
         supabase.from('clientes').select('id', { count: 'exact', head: true }).eq('activo', true),
     ]);
 
+    // Cuadro de dirección. Siempre global: estas cuatro preguntas se leen sobre
+    // todo el pipeline, no sobre una rebanada filtrada.
+    const [pulsoRes, abandonoRes, descuentoRes, rendimientoRes, motivosRes] = await Promise.all([
+        supabase.from('vista_pulso').select('*').single(),
+        supabase.from('vista_abandono').select('*'),
+        supabase.from('vista_descuento').select('*'),
+        supabase.from('vista_rendimiento_producto').select('*'),
+        supabase.from('vista_motivos_producto').select('*'),
+    ]);
+
+    const pulso: Pulso | null = pulsoRes.data ?? null;
+    const abandono: ItemAbandono[] = abandonoRes.data ?? [];
+    const descuento: ItemDescuento[] = descuentoRes.data ?? [];
+    const rendimiento: RendimientoProducto[] = rendimientoRes.data ?? [];
+    const motivos: MotivoProducto[] = motivosRes.data ?? [];
+
     const kpiResponsable: KPIResponsable[] = kpiResponsableRes.data ?? [];
+    const kpiProducto: KPIProducto[] = kpiProductoRes.data ?? [];
     const kpiArea: KPIArea[] = kpiAreaRes.data ?? [];
     const kpiSector: KPISector[] = kpiSectorRes.data ?? [];
     const funnel: FunnelItem[] = funnelRes.data ?? [];
@@ -69,6 +97,7 @@ async function getDashboardData(filters: {
     let numActivas = 0;
     let tasaConversion = 0;
     let kpiResponsableFinal = kpiResponsable;
+    let kpiProductoFinal = kpiProducto;
     let funnelFinal = funnel;
 
     // Calcular numActivas y tasaConversion desde el funnel
@@ -82,7 +111,7 @@ async function getDashboardData(filters: {
 
     if (filters.responsable || filters.area || filters.sector) {
         // Construir query raww como any para evitar TypeScript deep instantiation
-        let q = supabase.from('oportunidades').select('id,situacion,presupuesto,area,responsable_id,cliente_id,archivada').eq('archivada', false) as any;
+        let q = supabase.from('oportunidades').select('id,situacion,presupuesto,area,responsable_id,cliente_id,archivada,producto_catalogo').eq('archivada', false) as any;
         if (filters.area) q = q.eq('area', filters.area);
         if (filters.responsable) {
             const { data: rd } = await supabase.from('responsables').select('id').eq('nombre', filters.responsable).single();
@@ -135,6 +164,26 @@ async function getDashboardData(filters: {
             } as unknown as KPIResponsable;
         });
 
+        // Recalcular pipeline por producto sobre lo filtrado, conservando
+        // nombre y color que ya trae la vista (evita duplicar el diccionario aquí)
+        const metaProducto = new Map(kpiProducto.map(p => [p.producto_clave, p]));
+        const porProducto: Record<string, any[]> = {};
+        opsFiltradas.forEach((o: any) => {
+            const clave = o.producto_catalogo ?? 'sin-clasificar';
+            (porProducto[clave] ??= []).push(o);
+        });
+        kpiProductoFinal = Object.entries(porProducto).map(([clave, pOps]) => ({
+            producto_clave: clave,
+            producto: metaProducto.get(clave)?.producto ?? 'Sin clasificar',
+            color: metaProducto.get(clave)?.color ?? '#cbd5e1',
+            total_oportunidades: pOps.length,
+            ganadas: pOps.filter((o: any) => o.situacion === 'PROPUESTA_GANADA').length,
+            presentadas: pOps.filter((o: any) => o.situacion === 'PROPUESTA_PRESENTADA').length,
+            activas: pOps.filter((o: any) => !['PROPUESTA_GANADA', 'PROPUESTA_PERDIDA', 'DESCARTADA'].includes(o.situacion)).length,
+            pipeline_total: pOps.filter((o: any) => !['PROPUESTA_PERDIDA', 'DESCARTADA'].includes(o.situacion)).reduce((s: number, o: any) => s + Number(o.presupuesto ?? 0), 0),
+            importe_ganado: pOps.filter((o: any) => o.situacion === 'PROPUESTA_GANADA').reduce((s: number, o: any) => s + Number(o.presupuesto ?? 0), 0),
+        })).sort((a, b) => b.pipeline_total - a.pipeline_total);
+
         // Recalcular funnel
         const grouped: Record<string, { num: number; importe: number }> = {};
         opsFiltradas.forEach((o: any) => {
@@ -185,7 +234,13 @@ async function getDashboardData(filters: {
     ];
 
     return {
+        pulso,
+        abandono,
+        descuento,
+        rendimiento,
+        motivos,
         kpiResponsable: kpiResponsableFinal,
+        kpiProducto: kpiProductoFinal,
         kpiArea,
         kpiSector,
         funnel: funnelFinal,
@@ -219,6 +274,37 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
     return (
         <div className="space-y-5">
+            {/* ===== Cuadro de dirección (refundación 28-jul-2026) =====
+                Las cuatro preguntas que se deciden cada lunes. Va primero y sin
+                filtros a propósito: se lee sobre todo el pipeline, no sobre una
+                rebanada. El orden de los bloques sigue de cuánto te puedes fiar
+                de cada uno hoy, no de cuál es más vistoso. */}
+            {data.pulso && (
+                <section className="space-y-4">
+                    <PulsoTiles pulso={data.pulso} />
+                    <AbandonoChart items={data.abandono} />
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <ProductoTable filas={data.rendimiento} />
+                        <DescuentoChart items={data.descuento} />
+                    </div>
+                    <MotivosBlock motivos={data.motivos} />
+                    <LecturaBlock
+                        pulso={data.pulso}
+                        abandono={data.abandono}
+                        descuento={data.descuento}
+                        productos={data.rendimiento}
+                    />
+                </section>
+            )}
+
+            {/* ===== Detalle operativo (lo anterior al rediseño) ===== */}
+            <div className="flex items-center gap-3 pt-3">
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400 shrink-0">
+                    Detalle operativo
+                </h2>
+                <div className="h-px flex-1 bg-slate-200" />
+            </div>
+
             {/* Filtros */}
             <Suspense>
                 <DashboardFilters responsables={data.responsables} />
@@ -272,7 +358,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
             {/* Gráficas principales — Fila 2 */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <PipelineChart data={data.kpiResponsable} />
+                <PipelineChart data={data.kpiProducto} />
                 <FunnelChart data={data.funnel} />
             </div>
 

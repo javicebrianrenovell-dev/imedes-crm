@@ -211,7 +211,55 @@ SELECT
   ) AS tasa_conversion
 FROM responsables r
 LEFT JOIN oportunidades o ON o.responsable_id = r.id AND o.archivada = FALSE
+WHERE r.activo   -- refundación 28-jul-2026: sin esto los técnicos dados de baja seguían pintando barras a cero
 GROUP BY r.id, r.nombre, r.color;
+
+-- Pipeline por producto de catálogo. Alimenta la gráfica del dashboard desde la
+-- refundación del 28-jul-2026: con un responsable único (IMEDES), el eje que
+-- aporta información es el producto, no la persona.
+CREATE OR REPLACE VIEW vista_kpi_producto AS
+SELECT
+  COALESCE(o.producto_catalogo, 'sin-clasificar') AS producto_clave,
+  CASE COALESCE(o.producto_catalogo, 'sin-clasificar')
+    WHEN 'conecta-mayores-privado'   THEN 'Conecta empresas'
+    WHEN 'conecta-mayores-municipal' THEN 'Conecta ayto.'
+    WHEN 'campanya-municipal-14500'  THEN 'Se Nota'
+    WHEN 'campanya-ambiental-25000'  THEN 'C. ambientales'
+    WHEN 'catalogo-campanas'         THEN 'Catalogo'
+    WHEN 'recogida-a-la-carta'       THEN 'Recogida'
+    WHEN 'diagnostico-poligonos'     THEN 'Poligonos'
+    WHEN 'areas-industriales'        THEN 'A. industriales'
+    WHEN 'nou-bim'                   THEN 'Nou BIM'
+    WHEN 'visor-dana'                THEN 'Visor DANA'
+    WHEN 'a-medida'                  THEN 'A medida'
+    WHEN 'licitacion'                THEN 'Licitacion'
+    ELSE 'Sin clasificar'
+  END AS producto,
+  CASE COALESCE(o.producto_catalogo, 'sin-clasificar')
+    WHEN 'conecta-mayores-privado'   THEN '#70ab37'
+    WHEN 'conecta-mayores-municipal' THEN '#8fc75a'
+    WHEN 'campanya-municipal-14500'  THEN '#6366f1'
+    WHEN 'campanya-ambiental-25000'  THEN '#0ea5e9'
+    WHEN 'catalogo-campanas'         THEN '#8b5cf6'
+    WHEN 'recogida-a-la-carta'       THEN '#14b8a6'
+    WHEN 'diagnostico-poligonos'     THEN '#f59e0b'
+    WHEN 'areas-industriales'        THEN '#ec4899'
+    WHEN 'nou-bim'                   THEN '#06b6d4'
+    WHEN 'visor-dana'                THEN '#3b82f6'
+    WHEN 'a-medida'                  THEN '#94a3b8'
+    WHEN 'licitacion'                THEN '#64748b'
+    ELSE '#cbd5e1'
+  END AS color,
+  COUNT(*) AS total_oportunidades,
+  COUNT(*) FILTER (WHERE o.situacion = 'PROPUESTA_GANADA') AS ganadas,
+  COUNT(*) FILTER (WHERE o.situacion = 'PROPUESTA_PRESENTADA') AS presentadas,
+  COUNT(*) FILTER (WHERE o.situacion NOT IN ('PROPUESTA_GANADA','PROPUESTA_PERDIDA','DESCARTADA')) AS activas,
+  COALESCE(SUM(o.presupuesto) FILTER (WHERE o.situacion NOT IN ('PROPUESTA_PERDIDA','DESCARTADA')), 0) AS pipeline_total,
+  COALESCE(SUM(o.presupuesto) FILTER (WHERE o.situacion = 'PROPUESTA_GANADA'), 0) AS importe_ganado
+FROM oportunidades o
+WHERE NOT o.archivada
+GROUP BY 1, 2, 3
+ORDER BY pipeline_total DESC;
 
 CREATE OR REPLACE VIEW vista_kpi_sector AS
 SELECT

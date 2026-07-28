@@ -10,11 +10,11 @@ import {
     Legend,
     ResponsiveContainer,
 } from 'recharts';
-import type { KPIResponsable } from '@/types';
+import type { KPIProducto } from '@/types';
 import { formatCurrency } from '@/lib/utils';
 
 interface PipelineChartProps {
-    data: KPIResponsable[];
+    data: KPIProducto[];
 }
 
 const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ color: string; name: string; value: number }>; label?: string }) => {
@@ -37,7 +37,7 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 
 export function PipelineChart({ data }: PipelineChartProps) {
     const chartData = data.map(d => ({
-        name: d.responsable,
+        name: d.producto,
         'Pipeline activo': Number(d.pipeline_total) - Number(d.importe_ganado),
         'Importe ganado': Number(d.importe_ganado),
         color: d.color,
@@ -46,13 +46,23 @@ export function PipelineChart({ data }: PipelineChartProps) {
     return (
         <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
             <div className="mb-4">
-                <h3 className="text-sm font-semibold text-slate-900">Pipeline por responsable</h3>
+                <h3 className="text-sm font-semibold text-slate-900">Pipeline por producto</h3>
                 <p className="text-xs text-slate-400 mt-0.5">Pipeline activo vs importe ganado (€)</p>
             </div>
-            <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={chartData} barSize={20} barGap={4}>
+            <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={chartData} barSize={18} barGap={4} margin={{ bottom: 40 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                    {/* interval 0 + ángulo: con una docena de productos las etiquetas se solapan */}
+                    <XAxis
+                        dataKey="name"
+                        tick={{ fontSize: 11, fill: '#64748b' }}
+                        axisLine={false}
+                        tickLine={false}
+                        interval={0}
+                        angle={-35}
+                        textAnchor="end"
+                        height={60}
+                    />
                     <YAxis
                         tick={{ fontSize: 11, fill: '#94a3b8' }}
                         axisLine={false}
